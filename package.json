@@ -1,0 +1,30 @@
+{
+  "name": "ticketops",
+  "version": "1.0.0",
+  "description": "24/7 concert ticket monitor with WhatsApp alerts and auto-reservation",
+  "main": "src/monitor/index.js",
+  "type": "module",
+  "scripts": {
+    "start":         "node src/monitor/index.js",
+    "setup":         "node scripts/setup.js",
+    "login":         "node scripts/login.js",
+    "list-groups":   "node scripts/list-groups.js",
+    "test-notify":   "node scripts/test-notify.js",
+    "pm2:start":     "pm2 start ecosystem.config.cjs",
+    "pm2:stop":      "pm2 stop ticketops",
+    "pm2:restart":   "pm2 restart ticketops",
+    "pm2:logs":      "pm2 logs ticketops"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "chalk":             "^5.3.0",
+    "dotenv":            "^16.4.5",
+    "playwright":        "^1.44.0",
+    "qrcode-terminal":   "^0.12.0",
+    "whatsapp-web.js":   "^1.23.0",
+    "winston":           "^3.13.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "id":               "sebnem-ferah-istanbul",
+    "name":             "Şebnem Ferah",
+    "url":              "https://www.biletix.com/etkinlik/SEBNEMKCK/ISTANBUL/tr",
+    "enabled":          true,
+    "ticketsToReserve": 10,
+    "notes":            "KüçükÇiftlik Park, June 3"
+  },
+  {
+    "id":               "example-artist-ankara",
+    "name":             "Example Artist",
+    "url":              "https://www.biletix.com/etkinlik/EXAMPLE/ANKARA/tr",
+    "enabled":          false,
+    "ticketsToReserve": 4,
+    "notes":            "Disabled — template entry, set enabled:true to activate"
+  }
+]

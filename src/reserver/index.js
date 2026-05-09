@@ -1,43 +1,33 @@
-import { reserveTickets } from './biletix.js';
+import { reserveTickets } from './generic.js';
 import { env }            from '../config/index.js';
 import logger             from '../utils/logger.js';
 
 /**
- * Orchestrate the reservation flow for all newly available events.
- *
- * @param {object}  opts
+ * @param {object} opts
  * @param {import('../config/index.js').Target} opts.target
  * @param {import('../monitor/detector.js').EventSnapshot[]} opts.events
- * @returns {Promise<boolean>}  true if at least one reservation succeeded
+ * @param {import('../ai/discover.js').Schema} opts.schema
  */
-export async function attemptReservation({ target, events }) {
+export async function attemptReservation({ target, events, schema }) {
   if (!env.AUTO_RESERVE) {
-    logger.info('[reserver] AUTO_RESERVE is disabled — skipping');
+    logger.info('[reserver] AUTO_RESERVE disabled — skipping');
     return false;
   }
 
-  let anySuccess = false;
+  const event = events[0]; // reserve for the first available event
+  const result = await reserveTickets({
+    url:         target.url,
+    artistName:  target.name,
+    maxTickets:  target.ticketsToReserve ?? env.MAX_TICKETS,
+    targetEvent: event,
+    schema,
+  });
 
-  // Reserve for the first available event (or all, if you prefer)
-  const toReserve = events.slice(0, 1); // reserve first one to avoid overkill
-
-  for (const event of toReserve) {
-    const result = await reserveTickets({
-      url:         target.url,
-      artistName:  target.name,
-      maxTickets:  target.ticketsToReserve ?? env.MAX_TICKETS,
-      targetEvent: event,
-    });
-
-    if (result.success) {
-      anySuccess = true;
-      logger.info(
-        `[reserver] ✓ Reserved ${result.ticketsReserved} ticket(s) for ${target.name} — ${event.dateKey}`,
-      );
-    } else {
-      logger.error(`[reserver] ✗ Failed for ${target.name} — ${event.dateKey}: ${result.error}`);
-    }
+  if (result.success) {
+    logger.info(`[reserver] ✓ Reserved ${result.ticketsReserved} tickets for ${target.name}`);
+  } else {
+    logger.error(`[reserver] ✗ Failed for ${target.name}: ${result.error}`);
   }
 
-  return anySuccess;
+  return result.success;
 }

@@ -16,8 +16,9 @@ function requireEnv(key) {
 }
 
 export const env = {
-  ANTHROPIC_API_KEY:   requireEnv('ANTHROPIC_API_KEY'),
-  WHATSAPP_GROUP_ID:   requireEnv('WHATSAPP_GROUP_ID'),
+  // Optional at load time — validated at point-of-use (setup wizard sets these)
+  ANTHROPIC_API_KEY:     process.env.ANTHROPIC_API_KEY     || '',
+  WHATSAPP_RECIPIENT_ID: process.env.WHATSAPP_RECIPIENT_ID || '',
   POLL_INTERVAL_MS:    parseInt(process.env.POLL_INTERVAL_MS  || '45000', 10),
   MAX_RETRIES:         parseInt(process.env.MAX_RETRIES        || '3',     10),
   MAX_TICKETS:         parseInt(process.env.MAX_TICKETS        || '10',    10),

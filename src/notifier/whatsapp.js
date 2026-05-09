@@ -1,21 +1,28 @@
+/**
+ * whatsapp.js
+ *
+ * WhatsApp client wrapper using whatsapp-web.js.
+ *
+ * WHATSAPP_RECIPIENT_ID can be either:
+ *   - A group ID:    XXXXXXXXXX-XXXXXXXXXX@g.us
+ *   - Your own ID:   XXXXXXXXXXX@c.us   (send to yourself)
+ *
+ * Both work identically with sendMessage() — the ID format is the only difference.
+ */
+
 import pkg           from 'whatsapp-web.js';
-import qrcode         from 'qrcode-terminal';
+import qrcode        from 'qrcode-terminal';
 import { paths, env } from '../config/index.js';
 import logger         from '../utils/logger.js';
 
 const { Client, LocalAuth } = pkg;
 
-let _client    = null;
-let _ready     = false;
+let _client       = null;
+let _ready        = false;
 let _readyPromise = null;
 
-/**
- * Initialize the WhatsApp client.
- * On first run, prints a QR code to the terminal — scan with your phone.
- * Subsequent runs reuse the saved session (no QR needed).
- *
- * @returns {Promise<void>}
- */
+// ── Init ──────────────────────────────────────────────────────────────────────
+
 export async function initWhatsApp() {
   if (_ready) return;
   if (_readyPromise) return _readyPromise;
@@ -23,10 +30,7 @@ export async function initWhatsApp() {
   _readyPromise = new Promise((resolve, reject) => {
     _client = new Client({
       authStrategy: new LocalAuth({ dataPath: paths.waAuth }),
-      puppeteer: {
-        headless: true,
-        args: ['--no-sandbox'],
-      },
+      puppeteer: { headless: true, args: ['--no-sandbox'] },
     });
 
     _client.on('qr', (qr) => {
@@ -56,39 +60,60 @@ export async function initWhatsApp() {
   return _readyPromise;
 }
 
+// ── Send ──────────────────────────────────────────────────────────────────────
+
 /**
- * Send a message to the configured WhatsApp group.
+ * Send a notification to the configured recipient (group or self).
+ * Uses WHATSAPP_RECIPIENT_ID from env — works for both @g.us and @c.us IDs.
  * @param {string} message
  */
-export async function sendToGroup(message) {
-  if (!_ready || !_client) {
-    throw new Error('[whatsapp] Client not ready — call initWhatsApp() first');
-  }
+export async function sendNotification(message) {
+  if (!_ready || !_client) throw new Error('[whatsapp] Client not ready');
 
-  const groupId = env.WHATSAPP_GROUP_ID;
-  await _client.sendMessage(groupId, message);
-  logger.info(`[whatsapp] Message sent to group ${groupId}`);
+  const recipientId = env.WHATSAPP_RECIPIENT_ID;
+  if (!recipientId) throw new Error('[whatsapp] WHATSAPP_RECIPIENT_ID not set in .env');
+
+  await _client.sendMessage(recipientId, message);
+
+  const label = recipientId.endsWith('@g.us') ? 'group' : 'yourself';
+  logger.info(`[whatsapp] ✓ Message sent to ${label} (${recipientId})`);
+}
+
+// ── Helpers for setup wizard ──────────────────────────────────────────────────
+
+/**
+ * Get the WhatsApp ID for the currently logged-in account.
+ * Used to let the user send notifications to themselves.
+ * @returns {Promise<{ id: string, name: string }>}
+ */
+export async function getMyId() {
+  if (!_ready || !_client) throw new Error('[whatsapp] Client not ready');
+  const info = _client.info;
+  const id   = info.wid._serialized; // e.g. "905XXXXXXXXX@c.us"
+  const name = info.pushname || 'Me';
+  return { id, name };
 }
 
 /**
- * List all groups the account is in — useful for finding WHATSAPP_GROUP_ID.
+ * List all groups the account is in.
  * @returns {Promise<Array<{id:string, name:string}>>}
  */
 export async function listGroups() {
   if (!_ready || !_client) throw new Error('[whatsapp] Client not ready');
-
   const chats = await _client.getChats();
   return chats
     .filter((c) => c.isGroup)
     .map((c) => ({ id: c.id._serialized, name: c.name }));
 }
 
-/**
- * Gracefully destroy the WhatsApp client.
- */
+// ── Shutdown ──────────────────────────────────────────────────────────────────
+
 export async function closeWhatsApp() {
   await _client?.destroy();
   _client = null;
   _ready  = false;
   logger.info('[whatsapp] Client closed');
 }
+
+// Legacy alias — keeps notifier/index.js working without changes
+export { sendNotification as sendToGroup };

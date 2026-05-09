@@ -1,60 +1,84 @@
 /**
  * scripts/login.js
  *
- * Opens a visible Chromium window so you can log into Biletix manually.
- * Once you're logged in and see the homepage, press Enter in the terminal
- * and the session (cookies + localStorage) will be saved.
+ * Opens a visible browser at the target site so you can log in manually.
+ * Session is saved per-domain — biletix.com and eventim.de are separate.
  *
- * After this, the main monitor will use the saved session and Biletix
- * will see you as a logged-in user.
- *
- * Usage: npm run login
+ * Usage:
+ *   npm run login                          ← uses first enabled target in targets.json
+ *   node scripts/login.js <url>            ← opens that specific site
+ *   node scripts/login.js eventim.de       ← finds that target in targets.json
  */
 
 import 'dotenv/config';
-import { chromium } from 'playwright';
-import readline      from 'readline';
-import path          from 'path';
-import fs            from 'fs/promises';
+import fs      from 'fs/promises';
+import path    from 'path';
+import chalk   from 'chalk';
 import { fileURLToPath } from 'url';
-import chalk         from 'chalk';
+import { runLogin } from '../src/utils/login-helper.js';
 
-const __dirname    = path.dirname(fileURLToPath(import.meta.url));
-const SESSION_FILE = path.resolve(__dirname, '../storage/sessions/biletix.json');
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT      = path.resolve(__dirname, '..');
 
-await fs.mkdir(path.dirname(SESSION_FILE), { recursive: true });
+// ── Resolve which URL to log into ────────────────────────────────────────────
 
-console.log(chalk.cyan('\n🔑  Biletix Login Helper\n'));
-console.log('A browser window will open. Log into your Biletix account.');
-console.log('When you\'re done, come back here and press ' + chalk.green('Enter') + ' to save the session.\n');
+let targetUrl = process.argv[2];
 
-const browser = await chromium.launch({
-  headless: false, // visible window for manual login
-  args: ['--no-sandbox'],
-});
+if (!targetUrl) {
+  // No arg — use first enabled target from targets.json
+  let targets = [];
+  try {
+    targets = JSON.parse(await fs.readFile(path.join(ROOT, 'targets.json'), 'utf-8'));
+  } catch {
+    console.error(chalk.red('\nNo targets.json found. Run `npm run setup` first or pass a URL:\n'));
+    console.error('  node scripts/login.js https://www.eventim.de/...\n');
+    process.exit(1);
+  }
 
-const context = await browser.newContext({
-  userAgent:    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36',
-  locale:       'tr-TR',
-  timezoneId:   'Europe/Istanbul',
-  viewport:     { width: 1280, height: 800 },
-});
+  const active = targets.filter((t) => t.enabled);
+  if (active.length === 0) {
+    console.error(chalk.red('\nNo enabled targets in targets.json.\n'));
+    process.exit(1);
+  }
 
-const page = await context.newPage();
-await page.goto('https://www.biletix.com/anasayfa/TURKIYE/tr', { waitUntil: 'domcontentloaded' });
+  if (active.length === 1) {
+    targetUrl = active[0].url;
+  } else {
+    // Multiple targets — show a pick list
+    const readline = (await import('readline')).default;
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
-console.log(chalk.yellow('→ Browser opened at biletix.com'));
-console.log('  Log in, then press Enter here...\n');
+    console.log(chalk.cyan('\nWhich site do you want to log into?\n'));
+    active.forEach((t, i) => {
+      const hostname = new URL(t.url).hostname;
+      console.log(`  ${chalk.bold(i + 1)}. ${t.name}  ${chalk.gray(hostname)}`);
+    });
+    console.log('');
 
-// Wait for user to press Enter
-await new Promise((resolve) => {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  rl.question('Press Enter when logged in: ', () => { rl.close(); resolve(); });
-});
+    targetUrl = await new Promise((resolve) => {
+      const retry = () => rl.question(`Pick (1–${active.length}): `, (ans) => {
+        const n = parseInt(ans.trim(), 10);
+        if (n >= 1 && n <= active.length) { rl.close(); return resolve(active[n - 1].url); }
+        console.log(chalk.red(`  Enter a number between 1 and ${active.length}.`));
+        retry();
+      });
+      retry();
+    });
+  }
+}
 
-// Save session
-await context.storageState({ path: SESSION_FILE });
-await browser.close();
+// Handle shorthand like "eventim.de" — find in targets.json
+if (!targetUrl.startsWith('http')) {
+  let targets = [];
+  try { targets = JSON.parse(await fs.readFile(path.join(ROOT, 'targets.json'), 'utf-8')); } catch {}
+  const match = targets.find((t) => t.url.includes(targetUrl));
+  if (match) {
+    targetUrl = match.url;
+  } else {
+    console.error(chalk.red(`\nNo target found matching "${targetUrl}".\n`));
+    process.exit(1);
+  }
+}
 
-console.log(chalk.green(`\n✓ Session saved to ${SESSION_FILE}`));
-console.log('  You can now run `npm start` or `npm run pm2:start`\n');
+await runLogin(targetUrl);
+console.log('\nYou can now run `npm start` to begin monitoring.\n');

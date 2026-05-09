@@ -8,7 +8,7 @@
     "start":         "node src/monitor/index.js",
     "setup":         "node scripts/setup.js",
     "login":         "node scripts/login.js",
-    "pick-group":    "node scripts/pick-group.js",
+    "pick-recipient": "node scripts/pick-recipient.js",
     "test-notify":   "node scripts/test-notify.js",
     "inspect":       "node scripts/inspect.js",
     "pm2:start":     "pm2 start ecosystem.config.cjs",

@@ -12,6 +12,7 @@ node_modules/
 storage/sessions/
 storage/screenshots/
 storage/state.json
+storage/schemas/
 
 # ── WhatsApp session (contains your WhatsApp auth token) ──────────────────────
 .wwebjs_auth/
